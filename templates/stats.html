@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Statistiken</h2>
+<table>
+  <tr><th>User</th><th>Nachrichten</th></tr>
+  {% for u,c in data %}<tr><td>{{u}}</td><td>{{c}}</td></tr>{% endfor %}
+</table>
+<p><a href="{{ url_for('admin_panel') }}">Zurück</a></p>
+{% endblock %}

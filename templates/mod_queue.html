@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Moderation</h2>
+<ul>
+  {% for m in queue %}
+    <li>{{m.username}} [{{m.timestamp.strftime('%H:%M')}}]: {{m.content}}
+      <form method="post" style="display:inline">
+        <input type="hidden" name="approve_id" value="{{m.id}}">
+        <button>Freigeben</button>
+      </form>
+    </li>
+  {% endfor %}
+</ul>
+<p><a href="{{ url_for('admin_panel') }}">Zurück</a></p>
+{% endblock %}

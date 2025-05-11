@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Wähle einen Chatraum</h2>
+{% for r in rooms %}
+  <form method="post" style="border:1px solid #ccc; padding:1rem; border-radius:6px; background:#fff;">
+    <input type="hidden" name="room" value="{{ r.name }}">
+    <p><strong>{{ r.name }}</strong> {% if r.password %}🔒{% endif %}</p>
+    {% if r.password %}
+      <input type="password" name="room_password" placeholder="Raum-Passwort" required>
+    {% endif %}
+    <button type="submit">Betreten</button>
+  </form>
+{% endfor %}
+{% endblock %}

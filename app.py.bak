@@ -1,0 +1,207 @@
+from flask import Flask, render_template, redirect, url_for, request, flash, session, jsonify
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_socketio import SocketIO, emit, join_room
+from passlib.hash import pbkdf2_sha256
+from datetime import datetime, timedelta
+import re
+
+from models import db, User, Message, ChatRoom, Keyword
+from forms import LoginForm, SignupForm, RenameForm, PasswordResetForm
+
+app = Flask(__name__)
+app.config.update(
+    SECRET_KEY='hard-to-guess-secret-key',
+    SQLALCHEMY_DATABASE_URI='sqlite:///chat.db',
+    SQLALCHEMY_TRACK_MODIFICATIONS=False,
+    DEBUG=True
+)
+
+db.init_app(app)
+login_manager = LoginManager(app)
+socketio = SocketIO(app)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+def require_role(*roles):
+    from functools import wraps
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            if current_user.role not in roles:
+                flash('Zugriff verweigert.')
+                return redirect(url_for('chat'))
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
+
+@app.route('/')
+def index():
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and pbkdf2_sha256.verify(form.password.data, user.password):
+            login_user(user)
+            session['room'] = 'global'
+            return redirect(url_for('chat'))
+        flash('Login fehlgeschlagen.')
+    return render_template('login.html', form=form)
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    form = SignupForm()
+    if form.validate_on_submit():
+        hashed_pw = pbkdf2_sha256.hash(form.password.data)
+        new_user = User(username=form.username.data, password=hashed_pw)
+        db.session.add(new_user)
+        db.session.commit()
+        login_user(new_user)
+        session['room'] = 'global'
+        return redirect(url_for('chat'))
+    return render_template('signup.html', form=form)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route('/chat')
+@login_required
+def chat():
+    room = session.get('room', 'global')
+    return render_template(
+        'chat.html',
+        username=current_user.username,
+        is_admin=(current_user.role == 'admin'),
+        is_mod=(current_user.role in ['admin', 'moderator']),
+        room=room
+    )
+
+@app.route('/admin', methods=['GET', 'POST'])
+@login_required
+@require_role('admin')
+def admin_panel():
+    # Impersonate user
+    if 'impersonate' in request.form:
+        u = User.query.get(int(request.form['impersonate_uid']))
+        if u:
+            logout_user()
+            login_user(u)
+            session['room'] = 'global'
+            flash(f"Du sprichst jetzt als: {u.username}")
+            return redirect(url_for('chat'))
+
+    # Delete user
+    if 'delete_user' in request.form:
+        user = User.query.get(int(request.form['delete_uid']))
+        if user:
+            db.session.delete(user)
+            db.session.commit()
+            flash('Benutzer gelöscht.')
+
+    # Create room
+    if 'create_room' in request.form:
+        name = request.form['room_name']
+        if not ChatRoom.query.filter_by(name=name).first():
+            db.session.add(ChatRoom(name=name))
+            db.session.commit()
+            flash(f"Raum '{name}' wurde erstellt.")
+
+    # Delete room
+    if 'delete_room' in request.form:
+        room = ChatRoom.query.get(int(request.form['delete_room_id']))
+        if room:
+            db.session.delete(room)
+            db.session.commit()
+            flash('Raum gelöscht.')
+
+    users = User.query.all()
+    rooms = ChatRoom.query.all()
+    rename_form = RenameForm(prefix='u')
+    pw_form = PasswordResetForm(prefix='p')
+    keywords = Keyword.query.all()
+    stats = db.session.query(Message.username, db.func.count(Message.id)).group_by(Message.username).all()
+
+    return render_template(
+        'admin.html',
+        users=users,
+        rooms=rooms,
+        rename_form=rename_form,
+        pw_form=pw_form,
+        keywords=keywords,
+        stats=stats
+    )
+
+@app.route('/get_messages/<room>')
+@login_required
+def get_messages(room):
+    pinned = Message.query.filter_by(room=room, pinned=True).all()
+    others = Message.query.filter_by(room=room, pinned=False, approved=True).all()
+    def serialize(msgs):
+        return [{
+            'id': m.id,
+            'username': m.username,
+            'content': m.content,
+            'timestamp': m.timestamp.strftime('%H:%M')
+        } for m in msgs]
+    return jsonify(serialize(pinned) + serialize(others))
+
+@app.route('/delete_message/<int:mid>', methods=['POST'])
+@login_required
+@require_role('admin', 'moderator')
+def delete_message(mid):
+    m = Message.query.get(mid)
+    room = m.room
+    db.session.delete(m)
+    db.session.commit()
+    socketio.emit('delete_message', {'id': mid}, room=room)
+    return ('', 204)
+
+@socketio.on('join')
+def handle_join(data):
+    join_room(data['room'])
+    emit('status', {'msg': f"{data['username']} betritt {data['room']}."}, room=data['room'])
+
+@socketio.on('message')
+def handle_message(data):
+    user = User.query.filter_by(username=data['username']).first()
+    if not user:
+        return
+    msg = data['msg']
+    # Keyword filtering (exact match example)
+    for k in Keyword.query.filter((Keyword.room == data['room']) | (Keyword.room.is_(None))):
+        if k.match_type == 'exact' and k.word in msg:
+            if k.action == 'block':
+                return
+            msg = msg.replace(k.word, f"<mark>{k.word}</mark>")
+    m = Message(username=user.username, content=msg, room=data['room'])
+    db.session.add(m)
+    db.session.commit()
+    emit('message', {
+        'id': m.id,
+        'username': m.username,
+        'content': m.content,
+        'timestamp': m.timestamp.strftime('%H:%M')
+    }, room=data['room'])
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+        # Ensure global room
+        if not ChatRoom.query.filter_by(name='global').first():
+            db.session.add(ChatRoom(name='global'))
+        # Ensure admin Felix
+        if not User.query.filter_by(username='Felix').first():
+            db.session.add(User(
+                username='Felix',
+                password=pbkdf2_sha256.hash('123'),
+                role='admin'
+            ))
+        db.session.commit()
+    socketio.run(app, host='0.0.0.0', port=8080, debug=True)

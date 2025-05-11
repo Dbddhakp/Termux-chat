@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Termux Chat</title>
+  <style>
+    body { font-family: sans-serif; margin:0; padding:1rem; background:#f4f4f4; }
+    a { color:#0366d6; text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h2,h3 { margin:1rem 0 0.5rem; }
+    ul { padding-left:1rem; }
+    form, table { width:100%; margin-bottom:1rem; }
+    input, select, button, textarea { font-size:1rem; padding:0.5rem; width:100%; box-sizing:border-box; margin-bottom:0.5rem; }
+    table { border-collapse: collapse; }
+    th,td { border:1px solid #ccc; padding:0.5rem; text-align:left; }
+    @media (min-width:600px) {
+      input,select,button,textarea { width:auto; }
+      .input-area { max-width:600px; margin:auto; }
+    }
+  </style>
+</head>
+<body>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <ul>
+        {% for m in messages %}<li>{{ m }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</body>
+</html>

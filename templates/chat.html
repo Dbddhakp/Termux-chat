@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 style="text-align:center;">Chatraum: {{ room }}</h2>
+<style>
+  #chat { height:60vh; overflow-y:auto; border:1px solid #ccc; padding:0.5rem; background:#fafafa; margin-bottom:0.5rem; }
+  .input-area { display:flex; gap:0.5rem; }
+  .input-area input { flex:1; }
+  .input-area button { width:25%; }
+  @media (max-width:600px) {
+    .input-area { flex-direction:column; }
+    .input-area button { width:100%; }
+  }
+</style>
+
+<div id="chat"></div>
+<div class="input-area">
+  <input id="msg" autocomplete="off" placeholder="Nachricht…">
+  <button id="send">Senden</button>
+</div>
+<p style="text-align:center;">
+  <a href="{{ url_for('rooms') }}">Räume</a> |
+  <a href="{{ url_for('logout') }}">Logout</a>
+  {% if is_admin or is_mod %}| <a href="{{ url_for('admin_panel') }}">Admin</a>{% endif %}
+</p>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<script>
+  const USERNAME = "{{ username }}",
+        ROOM     = "{{ room }}",
+        IS_ADMIN = {{ is_admin|lower }},
+        IS_MOD   = {{ is_mod|lower }};
+</script>
+<script src="{{ url_for('static', filename='chat.js') }}"></script>
+{% endblock %}

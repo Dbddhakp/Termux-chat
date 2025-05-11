@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Admin-Panel</h2>
+
+<!-- Impersonation -->
+<form method="post" style="margin-bottom:1rem;">
+  <button name="revert_impersonation" value="1">Zurück zum Admin</button>
+</form>
+
+<!-- Benutzerverwaltung -->
+<h3>Benutzer verwalten</h3>
+<table>
+  <tr>
+    <th>ID</th><th>Username</th><th>Klartext-PW</th><th>Aktionen</th>
+  </tr>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.id }}</td>
+    <td>{{ u.username }}</td>
+    <td><code>{{ u.plain_password }}</code></td>
+    <td>
+      <!-- Delete -->
+      <form method="post" style="display:inline;">
+        <input type="hidden" name="delete_user" value="1">
+        <input type="hidden" name="delete_uid"  value="{{ u.id }}">
+        <button>Löschen</button>
+      </form>
+      <!-- Impersonate -->
+      <form method="post" style="display:inline;">
+        <input type="hidden" name="impersonate"       value="1">
+        <input type="hidden" name="impersonate_uid"    value="{{ u.id }}">
+        <button>Impersonate</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<!-- Username ändern -->
+<h3>Username ändern</h3>
+<form method="post" style="margin-bottom:1rem;">
+  {{ rename_form.hidden_tag() }}
+  <input type="hidden" name="rename" value="1">
+  <p>
+    {{ rename_form.user_id.label }}<br>
+    {{ rename_form.user_id(size=4) }}
+  </p>
+  <p>
+    {{ rename_form.new_name.label }}<br>
+    {{ rename_form.new_name(size=16) }}
+  </p>
+  <p>{{ rename_form.submit() }}</p>
+</form>
+
+<!-- Passwort zurücksetzen -->
+<h3>Passwort zurücksetzen</h3>
+<form method="post" style="margin-bottom:1rem;">
+  {{ pw_form.hidden_tag() }}
+  <input type="hidden" name="reset_pw" value="1">
+  <p>
+    {{ pw_form.user_id.label }}<br>
+    {{ pw_form.user_id(size=4) }}
+  </p>
+  <p>
+    {{ pw_form.new_pass.label }}<br>
+    {{ pw_form.new_pass(size=16) }}
+  </p>
+  <p>{{ pw_form.submit() }}</p>
+</form>
+
+<!-- Keyword-Filter -->
+<h3>Keyword-Filter verwalten</h3>
+<form method="post" style="margin-bottom:0.5rem;">
+  <input type="hidden" name="add_keyword" value="1">
+  <p>
+    <input name="keyword" placeholder="Wort"><br>
+    <select name="match_type">
+      <option value="exact">Exact</option>
+      <option value="case_insensitive">Case-Ins.</option>
+      <option value="regex">Regex</option>
+    </select>
+    <select name="action">
+      <option value="block">Block</option>
+      <option value="mark">Mark</option>
+    </select><br>
+    <input name="kf_room" placeholder="Raum (optional)">
+  </p>
+  <button>Hinzufügen</button>
+</form>
+<ul style="margin-bottom:1rem;">
+  {% for k in keywords %}
+  <li>
+    {{ k.word }} ({{ k.match_type }}) → {{ k.action }}
+    <form method="post" style="display:inline;">
+      <input type="hidden" name="delete_keyword" value="1">
+      <input type="hidden" name="delete_keyword_id" value="{{ k.id }}">
+      <button>Löschen</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+
+<!-- Räume verwalten -->
+<h3>Räume verwalten</h3>
+<form method="post" style="margin-bottom:0.5rem;">
+  <input type="hidden" name="create_room" value="1">
+  <p>
+    <input name="room_name" placeholder="Neuer Raum"><br>
+    <input type="password" name="room_password" placeholder="Raum-Passwort (optional)">
+  </p>
+  <button>Erstellen</button>
+</form>
+<table style="margin-bottom:1rem;">
+  <tr><th>Name</th><th>Passwort</th><th>Status</th><th>Aktionen</th></tr>
+  {% for r in rooms %}
+  <tr>
+    <td>{{ r.name }}</td>
+    <td>{% if r.password %}<code>{{ r.password }}</code>{% else %}–{% endif %}</td>
+    <td>{{ 'Archiviert' if r.archived else 'Aktiv' }}</td>
+    <td>
+      <form method="post" style="display:inline;">
+        <input type="hidden" name="archive_room" value="1">
+        <input type="hidden" name="archive_room_id" value="{{ r.id }}">
+        <button>{{ 'Restore' if r.archived else 'Archive' }}</button>
+      </form>
+      <form method="post" style="display:inline;">
+        <input type="hidden" name="delete_room" value="1">
+        <input type="hidden" name="delete_room_id" value="{{ r.id }}">
+        <button>Löschen</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<!-- Statistiken -->
+<h3>Statistiken</h3>
+<ul>
+  {% for user, count in stats %}
+  <li>{{ user }}: {{ count }} Nachrichten</li>
+  {% endfor %}
+</ul>
+
+<p><a href="{{ url_for('rooms') }}">Zurück zu Räumen</a></p>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 style="text-align:center;">Chatraum: {{ room }}</h2>
+<style>
+  #chat { height:60vh; max-height:70vh; overflow-y:auto; border:1px solid #ccc; padding:10px; background:#fafafa; margin-bottom:10px; }
+  .input-area { display:flex; gap:5px; }
+  .input-area input { flex:1; padding:8px; font-size:1rem; }
+  .input-area button{ padding:8px 16px; font-size:1rem; }
+  @media(orientation:portrait){ .input-area input,.input-area button{font-size:1.2rem;} }
+  .message{margin-bottom:5px;} .status{font-style:italic;color:#888;margin-bottom:5px;}
+</style>
+<div id="chat"></div>
+<div class="input-area">
+  <input id="msg" autocomplete="off" placeholder="Nachricht eingeben…">
+  <button id="send" type="button">Senden</button>
+</div>
+<p style="text-align:center;">
+  <a href="{{ url_for('rooms') }}">Räume</a> |
+  <a href="{{ url_for('logout') }}">Logout</a>
+  {% if is_admin or is_mod %}| <a href="{{ url_for('admin_panel') }}">Admin</a>{% endif %}
+</p>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<script>
+  const USERNAME="{{ current_user.username }}", ROOM="{{ session.get('room', 'global) }}",
+        IS_ADMIN={{ 'true if current_user.role == 'admin else 'false }},
+        IS_MOD={{ 'true if current_user.role in ['admin','moderator] else 'false }};
+</script>
+<script src="{{ url_for('static',filename='chat.js') }}"></script>
+{% endblock %}
