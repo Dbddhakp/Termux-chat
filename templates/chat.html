@@ -1,33 +1,53 @@
-{% extends 'base.html' %}
-{% block content %}
-<h2 style="text-align:center;">Chatraum: {{ room }}</h2>
-<style>
-  #chat { height:60vh; overflow-y:auto; border:1px solid #ccc; padding:0.5rem; background:#fafafa; margin-bottom:0.5rem; }
-  .input-area { display:flex; gap:0.5rem; }
-  .input-area input { flex:1; }
-  .input-area button { width:25%; }
-  @media (max-width:600px) {
-    .input-area { flex-direction:column; }
-    .input-area button { width:100%; }
-  }
-</style>
+{% extends "base.html" %}
 
-<div id="chat"></div>
-<div class="input-area">
-  <input id="msg" autocomplete="off" placeholder="Nachricht…">
-  <button id="send">Senden</button>
-</div>
-<p style="text-align:center;">
-  <a href="{{ url_for('rooms') }}">Räume</a> |
-  <a href="{{ url_for('logout') }}">Logout</a>
-  {% if is_admin or is_mod %}| <a href="{{ url_for('admin_panel') }}">Admin</a>{% endif %}
-</p>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
-<script>
-  const USERNAME = "{{ username }}",
-        ROOM     = "{{ room }}",
-        IS_ADMIN = {{ is_admin|lower }},
-        IS_MOD   = {{ is_mod|lower }};
-</script>
-<script src="{{ url_for('static', filename='chat.js') }}"></script>
+{% block title %}Chatraum: {{ room.name }}{% endblock %}
+
+{% block content %}
+  <div class="chat-container">
+    <h2>Chatraum: {{ room.name }}</h2>
+
+    <div id="chat-window" style="height:60vh; overflow-y:auto; border:1px solid #ccc; padding:0.5rem; background:#fafafa;">
+      {% for msg in messages %}
+        <div><strong>{{ msg.user }}:</strong> {{ msg.text }}</div>
+      {% endfor %}
+    </div>
+
+    <div class="chat-input" style="display:flex; margin-top:0.5rem;">
+      <input id="message-input" type="text" placeholder="Nachricht eingeben..." style="flex:1; padding:0.5rem; border:1px solid #ccc; border-right:none; border-radius:4px 0 0 4px;" autocomplete="off" />
+      <button id="send-btn" style="padding:0.5rem 1rem; border:1px solid #ccc; border-radius:0 4px 4px 0; background:#eee; cursor:pointer;">Senden</button>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const currentRoom = {{ room.name|tojson }};
+    const chatWindow = document.getElementById("chat-window");
+    const messageInput = document.getElementById("message-input");
+    const sendBtn = document.getElementById("send-btn");
+
+    socket.on("connect", () => {
+      socket.emit("join", { room: currentRoom });
+    });
+
+    socket.on("message", data => {
+      const div = document.createElement("div");
+      div.innerHTML = `<strong>${data.user}:</strong> ${data.text}`;
+      chatWindow.appendChild(div);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    });
+
+    sendBtn.addEventListener("click", () => {
+      const text = messageInput.value.trim();
+      if (!text) return;
+      socket.emit("message", { room: currentRoom, text });
+      messageInput.value = "";
+    });
+
+    messageInput.addEventListener("keypress", e => {
+      if (e.key === "Enter") sendBtn.click();
+    });
+  </script>
 {% endblock %}
